@@ -1,0 +1,20 @@
+
+# Dependencies
+frontend/node_modules
+/venv
+
+# Environment files
+.env
+.env.local
+
+# Build files
+frontend/build
+frontend/dist
+
+# Cache
+frontend/.cache
+__pycache__
+*.pyc
+
+# System files
+.DS_Store
