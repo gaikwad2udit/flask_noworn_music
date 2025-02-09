@@ -1,0 +1,24 @@
+// previous music layout 
+
+{/* <div className="container mx-auto p-4 max-w-md">
+      <h2 className="text-2xl font-bold mb-4 text-center">Music Player</h2>
+      <audio ref={audioRef}></audio>
+
+      <div className="bg-gray-100 rounded-lg shadow-md">
+        {songs.map((song) => (
+          <div
+            className={`p-4 hover:bg-gray-500 cursor-pointer ${
+              currentSong?.filename === song.filename ? 'bg-blue-500 font-semibold text-white' : ''
+            }`}
+            key={song.filename}
+            onClick={() => {
+                playSong(song);               
+            }}
+          >
+            {song.title} - {song.artist}
+          </div>
+        ))}
+      </div>
+
+      
+    // </div> */}
