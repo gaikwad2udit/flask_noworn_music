@@ -1,4 +1,5 @@
 import { RenderSongsList } from "./renderSongsList";
+
 import React, { useState, useEffect, useRef } from "react";
 import {
   Play,
@@ -8,6 +9,9 @@ import {
   Trash2,
   PlusCircle,
   MoreVertical,
+  Download,
+  Upload,
+  AlertCircle,
 } from "lucide-react";
 import useClickOutside from "../hooks/contextmenu";
 
@@ -43,6 +47,41 @@ const MusicPlayer = () => {
   useClickOutside(menuRef, () => {
     setcontextMenu(null);
   });
+
+  const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [downloadStatus, setdownloadstatus] = useState({
+    loading: false,
+    error: null,
+  });
+  //youtube download handler
+  const handleYoutubeDownload = async (e) => {
+    e.preventDefault();
+    if (!youtubeUrl) return;
+
+    setdownloadstatus({ loading: true, error: null });
+
+    try {
+      const response = await fetch("http://localhost:5000/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: youtubeUrl }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) throw new Error(result.error || "Download failed");
+
+      const songsResponse = await fetch("http://localhost:5000/songs");
+      const songsData = await songsResponse.json();
+      setSongs(songsData);
+
+      setdownloadstatus({ loading: false, error: null });
+      setYoutubeUrl("");
+    } catch (error) {
+      console.log("downloading error");
+      setdownloadstatus({ loading: false, error: error.message });
+    }
+  };
 
   //Deleting a playlist
   const Delete_playlist = (playlistName) => {
@@ -294,7 +333,7 @@ const MusicPlayer = () => {
           <div
             className={`p-4 hover:bg-gray-500 cursor-pointer group flex justify-between items-center ${
               currentSong?.filename === song.filename
-                ? "bg-blue-500 font-semibold text-gray"
+                ? "bg-blue-600 font-semibold text-gray"
                 : ""
             }`}
             key={song.filename}
@@ -377,7 +416,7 @@ const MusicPlayer = () => {
               onClick={() => setActiveTab("all")}
               className={`w-full text-left p-2 rounded transition-colors ${
                 activeTab === "all"
-                  ? "bg-blue-500 text-white"
+                  ? "bg-blue-600 text-white"
                   : "hover:bg-gray-200"
               }`}
             >
@@ -387,7 +426,7 @@ const MusicPlayer = () => {
               onClick={() => setActiveTab("add")}
               className={`w-full text-left p-2 rounded transition-colors ${
                 activeTab === "add"
-                  ? "bg-blue-500 text-white"
+                  ? "bg-blue-600 text-white"
                   : "hover:bg-gray-200"
               }`}
             >
@@ -405,7 +444,7 @@ const MusicPlayer = () => {
                   onClick={() => setActiveTab(playlistName)}
                   className={`w-full text-left p-2 rounded transition-colors ${
                     activeTab === playlistName
-                      ? "bg-blue-500 text-white"
+                      ? "bg-blue-600 text-white"
                       : "hover:bg-gray-200"
                   }`}
                 >
@@ -473,63 +512,133 @@ const MusicPlayer = () => {
             {activeTab === "all" && renderSongsList(songs, Delete_song, "all")}
 
             {/* Add songs main content */}
-
+            {/* local + youtube */}
             {activeTab === "add" && (
-              <div className="bg-gray-100 rounded-lg shadow-md p-4">
-                <h3 className="text-lg font-semibold mb-4">Add Songs</h3>
-                <div className="border-2 border-dashed border-gray-400 rounded-lg p-4 text-center">
-                  <input
-                    type="file"
-                    id="file-upload"
-                    multiple
-                    accept=".mp3, .wav, .flac, .m4a"
-                    className="hidden"
-                    onChange={handleFileUpload}
-                  />
-                  <label
-                    htmlFor="file-upload"
-                    className="cursor-pointer inline-block"
-                  >
-                    <div className="text-gray-600">
-                      {isuploading ? (
-                        <div className="flex items-center justify-center">
-                          <svg
-                            className=" animate-spin h-5 w-5 mr-3 ..."
-                            viewBox="0 0 24 24"
-                          >
-                            <circle
-                              className="opacity-25"
-                              cx="12"
-                              cy="12"
-                              r="10"
-                              stroke="currentColor"
-                              strokeWidth="4"
-                            ></circle>
-                            <path
-                              className="opacity-75"
-                              fill="currentColor"
-                              d="M4 12a8 8 0 018-8V4a10 10 0 00-10 10h2zm2 0a6 6 0 016-6V4a8 8 0 00-8 8"
-                            ></path>
-                            {/* Loading spinner SVG */}
-                          </svg>
-                          Uploading....
-                        </div>
-                      ) : (
-                        <>
-                          <p>Drag and drop files here or</p>
-                          <div
-                            className="mt-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-                            disabled={isuploading}
-                          >
-                            Browse Files
-                          </div>
-                        </>
+              <div className="bg-gray-100 rounded-lg shadow-md p-6">
+                <h3 className="text-xl font-semibold mb-6 text-gray-800">
+                  Add Songs
+                </h3>
+
+                <div className="space-y-8">
+                  {/* YouTube Download Section */}
+                  <div className="bg-white rounded-lg p-6 shadow-sm">
+                    <h4 className="text-md font-medium mb-4 text-gray-700">
+                      Download from YouTube
+                    </h4>
+                    <form
+                      onSubmit={handleYoutubeDownload}
+                      className="space-y-4"
+                    >
+                      <div className="flex gap-4">
+                        <input
+                          type="text"
+                          value={youtubeUrl}
+                          key={youtubeUrl}
+                          onChange={(e) => setYoutubeUrl(e.target.value)}
+                          placeholder="Paste YouTube URL here"
+                          className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-500"
+                        />
+                        <button
+                          type="submit"
+                          disabled={downloadStatus.loading}
+                          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                        >
+                          {downloadStatus.loading ? (
+                            <>
+                              <svg
+                                className="animate-spin h-5 w-5 text-white"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                              >
+                                <circle
+                                  className="opacity-25"
+                                  cx="12"
+                                  cy="12"
+                                  r="10"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                ></circle>
+                                <path
+                                  className="opacity-75"
+                                  fill="currentColor"
+                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                ></path>
+                              </svg>
+                              Downloading...
+                            </>
+                          ) : (
+                            <>
+                              <Download className="w-5 h-5" />
+                              Download
+                            </>
+                          )}
+                        </button>
+                      </div>
+                      {downloadStatus.error && (
+                        <p className="text-red-600 text-sm mt-2 flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4" />
+                          {downloadStatus.error}
+                        </p>
                       )}
+                    </form>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-gray-300"></div>
                     </div>
-                  </label>
-                  {uploaderror && (
-                    <p className="text-red-500 mt-2"> Error : {uploaderror}</p>
-                  )}
+                    <div className="relative flex justify-center">
+                      <span className="px-4 bg-gray-100 text-sm text-gray-500">
+                        OR
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* File Upload Section */}
+                  <div className="bg-white rounded-lg p-6 shadow-sm">
+                    <h4 className="text-md font-medium mb-4 text-gray-700">
+                      Upload Local Files
+                    </h4>
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 transition-colors hover:border-blue-500">
+                      <input
+                        type="file"
+                        id="file-upload"
+                        multiple
+                        accept=".mp3, .wav, .flac, .m4a"
+                        className="hidden"
+                        onChange={handleFileUpload}
+                      />
+                      <label
+                        htmlFor="file-upload"
+                        className="cursor-pointer flex flex-col items-center justify-center space-y-4"
+                      >
+                        <Upload className="w-12 h-12 text-gray-400" />
+                        <div className="text-center">
+                          <p className="text-gray-600 mb-2">
+                            Drag and drop files here or
+                          </p>
+                          <button
+                            type="button"
+                            disabled={isuploading}
+                            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                          >
+                            {isuploading ? "Uploading..." : "Browse Files"}
+                          </button>
+                        </div>
+                        <p className="text-sm text-gray-500 mt-2">
+                          Supported formats: MP3, WAV, FLAC, M4A
+                        </p>
+                      </label>
+                    </div>
+                    {uploaderror && (
+                      <p className="text-red-600 text-sm mt-4 flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4" />
+                        Error: {uploaderror}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
