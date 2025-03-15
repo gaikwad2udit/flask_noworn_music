@@ -1,9 +1,18 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { usePlayer } from "../contexts/PlayerContext";
+import axios from "axios";
+
+const API_URL = "http://localhost:5000";
 
 const useSongs = () => {
-  const { setSongs, setCurrentSong, currentSong, audioRef, songs } =
-    usePlayer();
+  const {
+    setSongs,
+    setCurrentSong,
+    currentSong,
+    audioRef,
+    songs,
+    currentUser,
+  } = usePlayer();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -17,10 +26,23 @@ const useSongs = () => {
     setError(null);
 
     try {
-      const response = await fetch("http://localhost:5000/songs");
-      const data = await response.json();
-      console.log("TOTAL NO OF SONGS:", data.length); // Debugging
-      setSongs(data);
+      console.log(currentUser.token);
+      const response = await axios.get(`${API_URL}/songs`, {
+        headers: {
+          Authorization: `Bearer ${currentUser.token}`,
+        },
+      });
+      if (response.status >= 300 && response.status < 400) {
+        throw new Error("Authentication required");
+      }
+      const contentType = response.headers["content-type"];
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("Invalid response format");
+      }
+      // const response = await fetch("http://localhost:5000/songs");
+
+      console.log("TOTAL NO OF SONGS:", response.data.length); // Debugging
+      setSongs(response.data);
     } catch (error) {
       console.log("Error fetching songs", error);
     } finally {
@@ -29,7 +51,7 @@ const useSongs = () => {
   }, [setSongs]);
 
   const DeleteSong = useCallback(
-    async (filename) => {
+    async (song_id) => {
       if (!window.confirm("Are you sure you want to delete this song?")) {
         return;
       }
@@ -37,29 +59,29 @@ const useSongs = () => {
       // setisDeleting(true);
 
       try {
-        const response = await fetch(
-          `http://localhost:5000/delete/${filename}`,
+        const response = await axios.delete(
+          `http://localhost:5000/delete/${song_id}`,
           {
-            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${currentUser.token}`,
+            },
           }
         );
 
-        if (response.ok) {
-          if (currentSong?.filename === filename) {
+        if (response.status === 200) {
+          console.log("Deleted successfully from server");
+          if (currentSong?.id === song_id) {
             audioRef.current.pause();
             // setIsPlaying(false);
             setCurrentSong(null);
           }
-          setSongs(songs.filter((song) => song.filename !== filename));
+          setSongs(songs.filter((song) => song.id !== song_id));
           console.log("Deleted successfully");
         } else {
           alert("Error deleting song");
         }
       } catch (error) {
         console.log("Error deleting song:", error);
-      } finally {
-        // setisDeleting(false);
-        console.log("Song deleted successfully");
       }
     },
     [setSongs]

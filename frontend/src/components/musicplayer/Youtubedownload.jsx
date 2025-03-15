@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Download, AlertCircle, ConciergeBell } from "lucide-react";
 import { usePlayer } from "../../contexts/PlayerContext";
+import axios from "axios";
 
 const YouTubeDownload = () => {
-  const { setSongs } = usePlayer();
+  const { setSongs, currentUser } = usePlayer();
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [downloadStatus, setdownloadstatus] = useState({
     loading: false,
@@ -17,19 +18,29 @@ const YouTubeDownload = () => {
     setdownloadstatus({ loading: true, error: null });
 
     try {
-      const response = await fetch("http://localhost:5000/download", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: youtubeUrl }),
+      const response = await axios.post(
+        "http://localhost:5000/download",
+        { url: youtubeUrl }, // Axios automatically converts this to JSON
+        {
+          headers: {
+            Authorization: `Bearer ${currentUser.token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      // const result = await response.data;
+      console.log("server response code", response.status);
+
+      if (!response.status === 200) throw new Error("Download failed");
+
+      const songsResponse = await axios.get("http://localhost:5000/songs", {
+        headers: {
+          Authorization: `Bearer ${currentUser.token}`,
+        },
       });
 
-      const result = await response.json();
-
-      if (!response.ok) throw new Error(result.error || "Download failed");
-
-      const songsResponse = await fetch("http://localhost:5000/songs");
-      const songsData = await songsResponse.json();
-      setSongs(songsData);
+      setSongs(songsResponse.data);
       console.log("Downloaded successfully");
       setdownloadstatus({ loading: false, error: null });
       setYoutubeUrl("");

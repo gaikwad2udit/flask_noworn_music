@@ -5,17 +5,16 @@ import AddSongsDashboard from "./musicplayer/addSongsDashboard";
 import { use, useState } from "react";
 import PlayerControls from "./musicplayer/PlayerControls";
 import { usePlayer } from "../contexts/PlayerContext";
+import NowPlayingCard from "./musicplayer/nowPlayingCard";
 
 const MusicPlayer = () => {
-  return (
-    <PlayerProvider>
-      <MusicPlayerContent />
-    </PlayerProvider>
-  );
+  return <MusicPlayerContent />;
 };
 
 const MusicPlayerContent = () => {
-  const { activeTab } = usePlayer();
+  const { activeTab, nowPlaying, setNowPlaying } = usePlayer();
+  console.log("Music Player rendered ", activeTab);
+
   return (
     <div className="flex flex-col h-screen">
       <div className="flex flex-1 overflow-hidden">
@@ -25,7 +24,13 @@ const MusicPlayerContent = () => {
           <div className="container mx-auto max-w-md">
             {activeTab === "all" && <SongList />}
             {activeTab === "add" && <AddSongsDashboard />}
-            {activeTab !== "all" && activeTab !== "add" && <SongList />}
+            {/* {activeTab !== "all" && activeTab !== "add" && <SongList />} */}
+            {nowPlaying && activeTab === "nowPlaying" && (
+              <NowPlayingCard
+                song={nowPlaying}
+                onClose={() => setNowPlaying(null)}
+              />
+            )}
           </div>
         </div>
       </div>

@@ -37,6 +37,15 @@ class Song(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'title': self.title,
+            'artist': self.artist,
+            'filename': self.filename,
+            'created_at': self.created_at.isoformat()
+        }
+
 playlist_song = db.Table('playl_song',
     db.Column('playlist_id', db.Integer, db.ForeignKey('playlist.id')),
     db.Column('song_id', db.Integer, db.ForeignKey('song.id'))

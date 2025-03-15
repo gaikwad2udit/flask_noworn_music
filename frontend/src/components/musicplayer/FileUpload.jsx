@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { usePlayer } from "../../contexts/PlayerContext";
 import { AlertCircle, Upload } from "lucide-react";
+import axios from "axios";
+const API_URL = "http://localhost:5000";
 
 const FileUpload = () => {
   const [isuploading, setisuploading] = useState(false);
   const [uploaderror, setuploaderorror] = useState(null);
-  const { setSongs } = usePlayer();
+  const { setSongs, currentUser } = usePlayer();
 
   const handleFileUpload = async (e) => {
     const files = e.target.files;
@@ -23,17 +25,13 @@ const FileUpload = () => {
         formData.append("files", file);
       });
 
-      const response = await fetch("http://localhost:5000/upload", {
-        method: "POST",
-        body: formData,
+      const response = await axios.post(`${API_URL}/upload`, formData, {
+        headers: {
+          Authorization: `Bearer ${currentUser.token}`,
+        },
       });
 
-      if (!response.ok) {
-        throw new Error("Error uploading files");
-      }
-
-      const result = await response.json();
-      setSongs(result.songs);
+      setSongs(response.data.songs);
     } catch (error) {
       setuploaderorror(error.message);
     } finally {

@@ -3,7 +3,14 @@ import { usePlayer } from "../../contexts/PlayerContext";
 import { useState } from "react";
 
 const SideBar = () => {
-  const { playlists, setplaylists, activeTab, setActiveTab } = usePlayer();
+  const {
+    playlists,
+    setplaylists,
+    activeTab,
+    setActiveTab,
+    nowPlaying,
+    setNowPlaying,
+  } = usePlayer();
   const [showAddPlaylist, setShowAddPlaylist] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState("");
 
@@ -45,8 +52,24 @@ const SideBar = () => {
 
       <nav className="space-y-2">
         {/* Existing buttons */}
+        {nowPlaying && (
+          <button
+            onClick={() => setActiveTab("nowPlaying")}
+            className={`w-full text-left p-2 rounded transition-colors ${
+              activeTab === "nowPlaying"
+                ? "bg-blue-600 text-white"
+                : "hover:bg-gray-200"
+            }`}
+          >
+            Now Playing
+          </button>
+        )}
+
         <button
-          onClick={() => setActiveTab("all")}
+          onClick={() => {
+            setActiveTab("all");
+            // setNowPlaying(false);
+          }}
           className={`w-full text-left p-2 rounded transition-colors ${
             activeTab === "all" ? "bg-blue-600 text-white" : "hover:bg-gray-200"
           }`}

@@ -13,6 +13,9 @@ const SongItem = ({ playlists, song, onDelete, songList }) => {
     setCurrentSongIndex,
     currentPlaylist,
     setCurrentPlaylist,
+    setNowPlaying,
+    isSongSelected,
+    setIsSongSelected,
   } = usePlayer();
   const [contextMenu, setcontextMenu] = useState(null);
   const menuRef = useRef(null);
@@ -39,6 +42,8 @@ const SongItem = ({ playlists, song, onDelete, songList }) => {
     const songIndex = songList.findIndex((s) => s.filename === song.filename);
     setCurrentPlaylist(songList); // Set current playlist
     setCurrentSongIndex(songIndex);
+    setIsSongSelected(true);
+    setNowPlaying(true);
     setCurrentSong(song);
   };
 
@@ -80,7 +85,7 @@ const SongItem = ({ playlists, song, onDelete, songList }) => {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      DeleteSong(song.filename);
+                      DeleteSong(song.id);
                       setcontextMenu(null);
                     }}
                     className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 flex items-center"
