@@ -16,31 +16,61 @@ from datetime import datetime ,timedelta
 from functools import wraps
 import pytz
 import requests
+from dotenv import load_dotenv
+from flask_mail import Mail, Message
+import smtplib 
+import cloudinary
+import cloudinary.uploader
+
+load_dotenv()
+
 app = Flask(__name__)
 
-app.config['SECRET_KEY'] = 'd75b89e3b8d6b4a0c96f1b45e7c8a92d'
-app.config['SECURITY_PASSWORD_SALT'] = 'a3f8c1e7b9d2e5f4a9c6b7d8e1f2c3a4'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
+
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME') # Your Gmail email
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')  # Your Gmail password or App Password
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_USERNAME')  # Your Gmail email
+
+
+mail = Mail(app)
+
+
+app.config['SECRET_KEY'] =  os.getenv('SECRET_KEY') 
+app.config['SECURITY_PASSWORD_SALT'] =  os.getenv('SECURITY_PASSWORD_SALT')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///site.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# CORS(app, resources={r'/*': {
+#     'origins': "http://localhost:3000",
+#     'methods': ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+#     'allow_headers': ['Content-Type', 'Authorization',],
+#     'supports_credentials': True
+# }})
+CORS_ORIGINS = os.getenv('CORS_ORIGINS', 'http://localhost:3000').split(',')
+
 CORS(app, resources={r'/*': {
-    'origins': "http://localhost:3000",
+    'origins': CORS_ORIGINS,
     'methods': ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    'allow_headers': ['Content-Type', 'Authorization',],
-    'supports_credentials': True
+    'allow_headers': ['Content-Type', 'Authorization'],
+    'supports_credentials': True,
+    'expose_headers': ['Content-Disposition']  # For file downloads
 }})
-# CORS(app, resources={r"/*": {"origins": "*"}})
-# @app.after_request
-# def after_request(response):
-#     response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
-#     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-#     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-#     response.headers.add('Access-Control-Allow-Credentials', 'true')
-#     return response
+
+
 
 db = SQLAlchemy(app)
 # login_manager = LoginManager(app)
 # login_manager.login_view = 'login'
+
+cloudinary.config(
+    cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
+    api_key=os.getenv('CLOUDINARY_API_KEY'),
+    api_secret= os.getenv('CLOUDINARY_API_SECRET')
+)
+
 
 #database models 
 class User( db.Model):
@@ -76,9 +106,10 @@ class Song(db.Model):
     uploader = db.Column(db.String(140))
     upload_date = db.Column(db.String(140))
     thumbnail = db.Column(db.String(140))
-    filename = db.Column(db.String(140), unique=True)
+    filename = db.Column(db.String(140),)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    musicfile_cloudinary_url = db.Column(db.String(255))
 
     def to_dict(self):
         return {
@@ -90,6 +121,7 @@ class Song(db.Model):
             'uploader': self.uploader,
             'upload_date': self.upload_date,
             'thumbnail': self.thumbnail,
+            'musicfile_cloudinary_url': self.musicfile_cloudinary_url
 
         }
 
@@ -149,11 +181,40 @@ def register():
     db.session.commit()
  
     token = serializer.dumps(user.email, salt=app.config['SECURITY_PASSWORD_SALT'])
+    
     print(f"Confirmation token: {token}")  # For development
     
+    #for production
+    app.config['MAIL_DEFAULT_SENDER'] =  'noreply@nowornmusic.com'
+    confirmation_url = f"{os.getenv('FRONTEND_URL')}/confirm/{token}"
+    msg = Message(
+        subject='Confirm your email',
+        recipients=[user.email],
+        html=f"""
+        <h1>Welcome to Noworn Music!</h1>
+        <p>Please confirm your email by clicking the link below:</p>
+        <a href="{confirmation_url}">Confirm Email</a>
+        <p>If you didn't create an account, please ignore this email.</p>
+        """
+    )
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()  # Upgrade to secure connection
+        server.login('gaikwad2udit@gmail.com' , 'jnow gobm anmu ancf')
+        print("SMTP connection successful!")
+        server.quit()
+    except Exception as e:
+        print(f"SMTP connection failed: {e}")
+
+    try:
+     mail.send(msg)
+    except Exception as e:
+        app.logger.error(f"Error sending email: {str(e)}")
+        return jsonify({'error': 'Error sending email'}), 500
+
     return jsonify({'message': 'User registered. Please confirm your email.'}), 201
 
-#email confirmation
+#email confirmation handler
 @app.route('/confirm/<token>')
 def confirm_email(token):
     try:
@@ -258,6 +319,7 @@ def list_songs(current_user):
             'uploader': song.uploader,
             'upload_date': song.upload_date,
             'thumbnail': song.thumbnail,
+            'musicfile_cloudinary_url': song.musicfile_cloudinary_url
         
     } for song in current_user.songs])
 
@@ -269,9 +331,16 @@ def play_song(current_user,song_id):
     # filepath  = os.path.join(MUSIC_FOLDER, filename)
     # return send_file(filepath,mimetype='audio/mpeg')       
     song = Song.query.filter_by(id = song_id, user_id = current_user.id).first_or_404()
-    filepath = os.path.join(get_user_music_folder(current_user.id), song.filename)
-    return send_file(filepath,mimetype='audio/mpeg')
+    # filepath = os.path.join(get_user_music_folder(current_user.id), song.filename)
+    # return send_file(filepath,mimetype='audio/mpeg')
+    if not song.musicfile_cloudinary_url:
+        return jsonify({'error': 'No file available for this song'}), 404
 
+    # Return the Cloudinary URL in the response
+    return jsonify({
+        'message': 'Song URL retrieved successfully',
+        'music_url': song.musicfile_cloudinary_url
+    })
 
 #updated for user auth
 @app.route('/upload',methods= ['POST'])
@@ -281,8 +350,8 @@ def upload_songs(current_user):
         # print("No file part")
         return jsonify({'error': 'No file part'}),400
 
-    user_folder = get_user_music_folder(current_user.id)
-    os.makedirs(user_folder, exist_ok=True)
+    # user_folder = get_user_music_folder(current_user.id)
+    # os.makedirs(user_folder, exist_ok=True)
 
     files  = request.files.getlist('files')
    
@@ -292,35 +361,52 @@ def upload_songs(current_user):
 
         if file and allowed_file(file.filename): 
             filename = secure_filename(file.filename)
-            save_path = os.path.join(user_folder, filename)
+            # save_path = os.path.join(user_folder, filename)
             
 
-            if not Song.query.filter_by(filename=filename, user_id = current_user.id).first():
+            if Song.query.filter_by(filename=filename, user_id = current_user.id).first():
             # if os.path.exists(save_path)
-                # continue
+                # print('song already exists')
+                continue
 
-               file.save(save_path)
-            #    saved_files.append(filename)
+            
+            temp_dir = "temp_uploads"
+            os.makedirs(temp_dir, exist_ok=True)
+            temp_path = os.path.join(temp_dir, filename)
+            file.save(temp_path)
                
-               audio = mutagen.File(save_path, easy=True)
+            #    saved_files.append(filename)
+            try:   
+               audio = mutagen.File(temp_path, easy=True)
                title = audio.tags.get('title', [filename])[0] if audio and audio.tags else filename
                artist = audio.tags.get('artist', ['Unknown'])[0] if audio and audio.tags else 'Unknown'
 
-               #getting the song details FROM spotify API
-               
+               #uploading to cloudinary
 
+               cloudinary_folder = f"music_files/user_{current_user.id}"
+               upload_result = cloudinary.uploader.upload(
+                   temp_path,
+                   resource_type = "video",
+                   folder = cloudinary_folder
+               )
+               cloudinary_url = upload_result['secure_url']
+               print("successfully uploaded the song")
                song = Song(
                 filename = filename,
                 title = title,
                 artist = artist,
-                user_id = current_user.id
+                user_id = current_user.id,
+                musicfile_cloudinary_url = cloudinary_url,
                )
                db.session.add(song)
                saved_files.append(filename)
+            except Exception as e:
+                return jsonify({'error': f'Upload failed: {str(e)}'}), 500  
+            finally:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)  
     db.session.commit()
   
-    # updated_songs = list_songs().json
-
     return jsonify({
        'message': f'{len(saved_files)} files uploaded successfully',
        'songs': [s.to_dict() for s in current_user.songs]
@@ -337,16 +423,24 @@ def delete_song(current_user,song_id):
   song = Song.query.filter_by(id=song_id, user_id=current_user.id).first_or_404()
 
   try:
-    filepath = os.path.join(get_user_music_folder(current_user.id),song.filename)
-    if os.path.exists(filepath):
-        os.remove(filepath)
-        
-        db.session.delete(song)
-        db.session.commit()
+    cloudinary_url = song.musicfile_cloudinary_url
+    if not cloudinary_url:
+            return jsonify({'error': 'Cloudinary URL not found'}), 404
 
-        return jsonify({'message': 'File deleted successfully'})
+    public_id = cloudinary_url.split("/")[-1].split(".")[0]  # Extracts the unique public ID
+    cloudinary_folder = f"music_files/user_{current_user.id}/{public_id}"
+    
+    res = cloudinary.uploader.destroy(cloudinary_folder,resource_type = "video")
+    if res.get('result') == 'ok':  # Check if deletion was successful
+            # Remove from database
+            db.session.delete(song)
+            db.session.commit()
+            
+            return jsonify({'message': 'File deleted successfully'})
     else:
-        return jsonify({'error': 'File not found'}), 404
+            return jsonify({'error': 'Failed to delete file from Cloudinary'}), 500
+    # filepath = os.path.join(get_user_music_folder(current_user.id),song.filename)
+    
   except Exception as e:
     return jsonify({'error': str(e)}), 500
 
@@ -400,14 +494,30 @@ def download_song(current_user):
     
        #move to music folder and sanitize filename 
        filename = secure_filename(os.path.basename(temp_path))  
-       final_path = os.path.join(user_folder,filename)  
+    
+       cloudinary_userfolder = f"music_files/user_{current_user.id}"
+       try:
+        upload_result = cloudinary.uploader.upload(
+                    temp_path,
+                    resource_type = 'auto',
+                    folder = cloudinary_userfolder,
+        )
+       except Exception as e:
+            app.logger.error(f"Error uploading to Cloudinary: {str(e)}")
+            shutil.rmtree(temp_dir)
+            return jsonify({'error': 'Failed to upload file to Cloudinary.'}), 500
+       finally:
+           print("succesfully uploaded the song")
+       cloudinary_url = upload_result['secure_url']
+    #for local development
+    #    final_path = os.path.join(user_folder,filename)  
        
        if Song.query.filter_by(filename=filename, user_id = current_user.id).first():
            shutil.rmtree(temp_dir)
            return jsonify({'error': 'Song already exists in your library'}), 400
             
-       shutil.move(temp_path, final_path)
-       #    shutil.rmtree(temp_dir)
+    #    shutil.move(temp_path, final_path)
+       shutil.rmtree(temp_dir)
        #getting song form spotify api
        
        print("succesfully downloaded the song- here's the available metadata")
@@ -418,19 +528,7 @@ def download_song(current_user):
        print('upload_date',info.get('upload_date'))
        print('thumbnail',info.get('thumbnail'))
        
-
-  
-
-    #    song_data = get_musicdata_spotify(info.get('title', filename).replace("-",""), info.get('uploader', 'Unknown Artist').replace("-","")) 
-    #    print("succesfully got the song metadata")
-    #    'id': self.id,
-    #         'title': self.title,
-    #         'artist': self.artist,
-    #         'filename': self.filename,
-    #         'created_at': self.created_at.isoformat(),
-    #         'uploader': self.uploader,
-    #         'upload_date': self.upload_date,
-    #         'thumbnail': self.thumbnail,
+    
        date_str = info.get('upload_date')
        formatted_date = datetime.strptime(date_str, "%Y%m%d").strftime("%d %B %Y") 
 
@@ -442,7 +540,8 @@ def download_song(current_user):
          user_id= current_user.id, 
          uploader= info.get('uploader'),
          upload_date= formatted_date,
-         thumbnail= info.get('thumbnail')
+         thumbnail= info.get('thumbnail'),
+         musicfile_cloudinary_url = cloudinary_url,
        )
 
        db.session.add(song)
@@ -456,66 +555,23 @@ def download_song(current_user):
      
      except Exception as e:
         # print(f"Error downloading: {str(e)}")
+        import traceback
+        traceback.print_exc() 
         return jsonify({'error': str(e)}), 500
+
+
+
 
 with app.app_context():
     db.create_all()
 
 
-def get_musicdata_spotify(track_name,artist_name):
-            
-        print("inside get_musicdata_spotify")
-        # Get access token
-        auth_url = 'https://accounts.spotify.com/api/token'
-        client_id = '56aa16865ee5427999293f3f08ec12ab'
-        client_secret = 'b2c073056e7b41d8a353647aa604b005'
-        try:
-            auth_response = requests.post(auth_url, {
-                'grant_type': 'client_credentials',
-                'client_id': client_id,
-                'client_secret': client_secret,
-            })
-            access_token = auth_response.json()['access_token']
-        except Exception as e:
-            print(f"Error getting access token: {str(e)}")
-            return None
-        # Search for a track
-        headers = {'Authorization': f'Bearer {access_token}'}
-        params = {
-            'q': f'track:{track_name} artist:{artist_name}',
-            'type': 'track'"album",
-            'limit': 1
-        }
-        try:
-            response = requests.get('https://api.spotify.com/v1/search', headers=headers, params=params)
-            data = response.json()
-        except Exception as e:
-            print(f"Error searching for track: {str(e)}")
-            return None
-        # Extract metadata
-        track = data['tracks']['items'][0]
-        title = track['name']
-        artist = track['artists'][0]['name']
-        album = track['album']['name']
-        release_date = track['album']['release_date']
-        album_art = track['album']['images'][0]['url']  # Highest resolution
-        
-        print( title, artist, album, release_date, album_art)
-        # return title, artist, album, release_date, album_art
-        return {
-        "title": track['name'],
-        "artist": track['artists'][0]['name'],
-        "album": track['album']['name'],
-        "release_date": track['album']['release_date'],
-        "album_art": track['album']['images'][0]['url']  # Highest resolution
-           }
-
 
 if __name__ == '__main__':
     
     # get_musicdata_spotify('kid laroi WITHOUT YOU','')
-
-    app.run(debug=True)
+    debug  = os.getenv('FLASK_ENV') == 'development'
+    app.run(debug=debug)
      
 
 

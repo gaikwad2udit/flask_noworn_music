@@ -9,8 +9,10 @@ import {
 } from "react";
 import axios from "axios";
 
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+
 const PlayerContext = createContext();
-const API_URL = "http://localhost:5000";
+
 export const PlayerProvider = ({ children }) => {
   const audioRef = useRef(null);
   const [songs, setSongs] = useState([]);
@@ -57,7 +59,7 @@ export const PlayerProvider = ({ children }) => {
       const userObject = JSON.parse(userString);
       const token = userObject?.token;
       console.log(token);
-      const response = await axios.get("http://localhost:5000/checkauth", {
+      const response = await axios.get(`${API_URL}/checkauth`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setCurrentUser(response.data);

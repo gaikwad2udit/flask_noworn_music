@@ -14,6 +14,8 @@ import { usePlayer } from "../../contexts/PlayerContext";
 import useAudio from "../../hooks/UseAudio";
 import axios from "axios";
 
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+
 const PlayerControls = () => {
   const {
     audioRef,
@@ -42,21 +44,20 @@ const PlayerControls = () => {
     const fetchAudio = async () => {
       try {
         console.log("Fetching audio for:", currentSong);
-        const response = await axios.get(
-          `http://localhost:5000/play/${currentSong.id}`,
-          {
-            responseType: "blob",
-            headers: {
-              Authorization: `Bearer ${currentUser.token}`,
-            },
-          }
-        );
+        const response = await axios.get(`${API_URL}/play/${currentSong.id}`, {
+          responseType: "blob",
+          headers: {
+            Authorization: `Bearer ${currentUser.token}`,
+          },
+        });
         console.log("Audio response:", response);
-        const audioblob = new Blob([response.data], { type: "audio/mpeg" });
-        const audioURL = URL.createObjectURL(audioblob);
-        console.log("Audio URL:", audioURL);
+        console.log(response.data);
 
-        audioRef.current.src = audioURL;
+        // const audioblob = new Blob([response.data], { type: "audio/mpeg" });
+        // const audioURL = URL.createObjectURL(audioblob);
+        // console.log("Audio URL:", audioURL);
+
+        audioRef.current.src = currentSong.musicfile_cloudinary_url;
         audioRef.current.load();
         audioRef.current.play().catch((error) => {
           console.error("Error playing song:", error);

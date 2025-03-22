@@ -3,6 +3,8 @@ import { Download, AlertCircle, ConciergeBell } from "lucide-react";
 import { usePlayer } from "../../contexts/PlayerContext";
 import axios from "axios";
 
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+
 const YouTubeDownload = () => {
   const { setSongs, currentUser } = usePlayer();
   const [youtubeUrl, setYoutubeUrl] = useState("");
@@ -19,7 +21,8 @@ const YouTubeDownload = () => {
 
     try {
       const response = await axios.post(
-        "http://localhost:5000/download",
+        `${API_URL}/download`,
+
         { url: youtubeUrl }, // Axios automatically converts this to JSON
         {
           headers: {
@@ -34,7 +37,7 @@ const YouTubeDownload = () => {
 
       if (!response.status === 200) throw new Error("Download failed");
 
-      const songsResponse = await axios.get("http://localhost:5000/songs", {
+      const songsResponse = await axios.get(`${API_URL}/songs`, {
         headers: {
           Authorization: `Bearer ${currentUser.token}`,
         },

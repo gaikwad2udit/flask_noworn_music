@@ -21,7 +21,7 @@ const SongItem = ({ playlists, song, onDelete, songList }) => {
   const menuRef = useRef(null);
   const ButtonRef = useRef(null);
   const { addToPlaylist, removeFromPlaylist } = UsePlaylist();
-  const { DeleteSong } = useSongs();
+  const { DeleteSong, PlaySong } = useSongs();
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -37,15 +37,15 @@ const SongItem = ({ playlists, song, onDelete, songList }) => {
     };
   }, [contextMenu]);
 
-  const playSong = (song) => {
-    console.log("Playing song:", song); // Debugging
-    const songIndex = songList.findIndex((s) => s.filename === song.filename);
-    setCurrentPlaylist(songList); // Set current playlist
-    setCurrentSongIndex(songIndex);
-    setIsSongSelected(true);
-    setNowPlaying(true);
-    setCurrentSong(song);
-  };
+  // const playSong = (song) => {
+  //   console.log("Playing song:", song); // Debugging
+  //   const songIndex = songList.findIndex((s) => s.filename === song.filename);
+  //   setCurrentPlaylist(songList); // Set current playlist
+  //   setCurrentSongIndex(songIndex);
+  //   setIsSongSelected(true);
+  //   setNowPlaying(true);
+  //   setCurrentSong(song);
+  // };
 
   return (
     <div
@@ -55,7 +55,7 @@ const SongItem = ({ playlists, song, onDelete, songList }) => {
           : ""
       }`}
       key={song.filename}
-      onClick={() => playSong(song)}
+      onClick={() => PlaySong(songList, song)}
     >
       <div className="flex-grow truncate">
         {song.title} - {song.artist}

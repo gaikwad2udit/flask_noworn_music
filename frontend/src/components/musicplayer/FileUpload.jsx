@@ -2,7 +2,8 @@ import { useState } from "react";
 import { usePlayer } from "../../contexts/PlayerContext";
 import { AlertCircle, Upload } from "lucide-react";
 import axios from "axios";
-const API_URL = "http://localhost:5000";
+
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 const FileUpload = () => {
   const [isuploading, setisuploading] = useState(false);

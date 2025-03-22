@@ -10,7 +10,7 @@ frontend/node_modules
 # Build files
 frontend/build
 frontend/dist
-
+/frontend
 # Cache
 frontend/.cache
 __pycache__

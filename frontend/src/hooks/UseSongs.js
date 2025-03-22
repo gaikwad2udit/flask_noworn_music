@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { usePlayer } from "../contexts/PlayerContext";
 import axios from "axios";
 
-const API_URL = "http://localhost:5000";
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
 const useSongs = () => {
   const {
@@ -12,6 +12,10 @@ const useSongs = () => {
     audioRef,
     songs,
     currentUser,
+    setNowPlaying,
+    setIsSongSelected,
+    setCurrentSongIndex,
+    setCurrentPlaylist,
   } = usePlayer();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -87,6 +91,16 @@ const useSongs = () => {
     [setSongs]
   );
 
+  const PlaySong = (songList, song) => {
+    console.log("Playing song:", song); // Debugging
+    const songIndex = songList.findIndex((s) => s.filename === song.filename);
+    setCurrentPlaylist(songList); // Set current playlist
+    setCurrentSongIndex(songIndex);
+    setIsSongSelected(true);
+    setNowPlaying(true);
+    setCurrentSong(song);
+  };
+
   useEffect(() => {
     FetchSongs();
   }, []);
@@ -96,6 +110,7 @@ const useSongs = () => {
     error,
     FetchSongs,
     DeleteSong,
+    PlaySong,
   };
 };
 
