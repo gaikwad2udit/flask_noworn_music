@@ -142,6 +142,7 @@ def jwt_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         token = None
+        print("token verfication")
         #just getting time form IST time
         ist = pytz.timezone('Asia/Kolkata')
         # print("token verification",datetime.now(ist))
@@ -168,6 +169,7 @@ def jwt_required(f):
 #authentication routes 
 @app.route('/register',methods = ['POST'])
 def register():
+    print("inside register function")
     data = request.get_json()
     if User.query.filter_by(email=data['email']).first():
         return jsonify({'error': 'Email already exists'}), 400
@@ -238,6 +240,7 @@ def confirm_email(token):
 
 @app.route('/login',methods=['POST'])  
 def login():
+     print("inside login function")
      data = request.get_json()
      user =  User.query.filter_by(email=data['email']).first()
      if not user or not user.check_password(data['password']):
@@ -574,6 +577,7 @@ if __name__ == '__main__':
     
     # get_musicdata_spotify('kid laroi WITHOUT YOU','')
     debug  = os.getenv('FLASK_ENV') == 'development'
+    print(CORS_ORIGINS)
     app.run(debug=debug)
      
 
