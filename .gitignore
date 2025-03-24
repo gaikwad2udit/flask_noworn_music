@@ -6,7 +6,7 @@ frontend/node_modules
 # Environment files
 .env
 .env.local
-
+/frontend
 # Build files
 frontend/build
 frontend/dist
