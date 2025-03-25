@@ -21,6 +21,7 @@ from flask_mail import Mail, Message
 import smtplib 
 import cloudinary
 import cloudinary.uploader
+import glob
 
 load_dotenv()
 
@@ -206,6 +207,7 @@ def register():
         print("SMTP connection successful!")
         server.quit()
     except Exception as e:
+        
         print(f"SMTP connection failed: {e}")
 
     try:
@@ -455,7 +457,42 @@ def delete_song(current_user,song_id):
 #downloading and converting a video to mp3 from youtube 
 ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
 
+# YDL_OPTIONS = {
+#     'format': 'bestaudio/best',
+#     'outtmpl': 'downloads/%(title)s.%(ext)s',
+#     'postprocessors': [{
+#         'key': 'FFmpegExtractAudio',
+#         'preferredcodec': 'mp3',
+#         'preferredquality': '192',
+#     }],
+#     'ffmpeg_location': ffmpeg_path
+# }
+# YDL_OPTIONS = {
+#     'format': 'bestaudio/best',
+#     'outtmpl': 'downloads/%(title)s.%(ext)s',
+#     'postprocessors': [{
+#         'key': 'FFmpegExtractAudio',
+#         'preferredcodec': 'mp3',
+#         'preferredquality': '192',
+#     }],
+#     'ffmpeg_location': ffmpeg_path,
+    
+#     # Development-specific modifications
+#     'http_headers': {
+#         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+#     },
+#     # Reduced throttling for faster testing
+#     'sleep_interval': 1,
+#     'max_sleep_interval': 3,
+#     # More verbose output for debugging
+#     'quiet': False,
+#     'no_warnings': False,
+#     # Keep these for stability
+#     'ignoreerrors': True,
+#     'retries': 2
+# }
 YDL_OPTIONS = {
+    # Core Audio Configuration
     'format': 'bestaudio/best',
     'outtmpl': 'downloads/%(title)s.%(ext)s',
     'postprocessors': [{
@@ -463,9 +500,49 @@ YDL_OPTIONS = {
         'preferredcodec': 'mp3',
         'preferredquality': '192',
     }],
-    'ffmpeg_location': ffmpeg_path
+    'ffmpeg_location': '/usr/bin/ffmpeg',  # Absolute path in production
+    
+    # Stealth Headers (Critical for Production)
+    'http_headers': {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Referer': 'https://www.youtube.com/',
+        'Origin': 'https://www.youtube.com',
+        'DNT': '1',
+        'Connection': 'keep-alive'
+    },
+    
+    # Rate Limit Protection
+    'sleep_interval': 8,  # Conservative delay
+    'max_sleep_interval': 15,
+    'retries': 5,  # Increased retry attempts
+    'retry_sleep': 'linear',  # Linear backoff
+    
+    # Network Configuration
+    'force_ipv4': True,
+    'geo_bypass': True,
+    'proxy': os.getenv('YT_PROXY'),  # Required for production
+    'socket_timeout': 30,
+    
+    # Error Handling
+    'ignoreerrors': False,  # Fail fast in production
+    'extract_flat': False,
+    
+    # Logging
+    'quiet': True,
+    'no_warnings': True,
+    
+    # Advanced Protection
+    'cookiefile': 'cookies.txt',  # If you have auth cookies
+    'throttledratelimit': 1048576,  # 1MB/s rate limit
+    'extractor_args': {
+        'youtube': {
+            'skip': ['dash', 'hls']  # Avoid problematic formats
+        }
+    }
 }
-
 
 #downloading youtube videos ,updated for user auth
 @app.route('/download',methods = ['POST'])
@@ -492,19 +569,20 @@ def download_song(current_user):
        #download and convert 
        ydl_opts  = YDL_OPTIONS.copy()
        ydl_opts['outtmpl'] = f'{temp_dir}/%(title)s.%(ext)s'
-
+       ydl_opts['keepvideo'] = True
+       
        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
          info  = ydl.extract_info(url,download=True)  
-         temp_path = ydl.prepare_filename(info).replace('.webm', '.mp3').replace('.m4a', '.mp3')
-
+        #  temp_path = ydl.prepare_filename(info).replace('.webm', '.mp3').replace('.m4a', '.mp3')
+         actual_mp3_path = glob.glob(f"{temp_dir}/*.mp3")[0]
     
        #move to music folder and sanitize filename 
-       filename = secure_filename(os.path.basename(temp_path))  
+       filename = secure_filename(os.path.basename(actual_mp3_path))  
     
        cloudinary_userfolder = f"music_files/user_{current_user.id}"
        try:
         upload_result = cloudinary.uploader.upload(
-                    temp_path,
+                    actual_mp3_path,
                     resource_type = 'auto',
                     folder = cloudinary_userfolder,
         )
