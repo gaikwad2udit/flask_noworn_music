@@ -88,7 +88,7 @@ class User( db.Model):
         return f'<User {self.username}>'
     
     def set_password(self, password):
-        self.password_hash = generate_password_hash("mypassword", method='pbkdf2:sha256:100000')
+        self.password_hash = generate_password_hash(password, method='pbkdf2:sha256:100000')
     
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
@@ -202,7 +202,7 @@ def register():
     try:
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()  # Upgrade to secure connection
-        server.login('gaikwad2udit@gmail.com' , 'jnow gobm anmu ancf')
+        server.login(os.getenv("MAIL_USERNAME") , os.getenv("MAIL_PASSWORD"))
         print("SMTP connection successful!")
         server.quit()
     except Exception as e:
@@ -244,12 +244,12 @@ def login():
      data = request.get_json()
      user =  User.query.filter_by(email=data['email']).first()
      if not user or not user.check_password(data['password']):
-        # print("Invalid email or password")
+        print("Invalid email or password")
         return jsonify({'error': 'Invalid email or password'}), 401
      if not user.confirmed:
-        # print("Please confirm your email first")
+        print("Please confirm your email first")
         return jsonify({'error': 'Please confirm your email first'}), 403
-    #  login_user(user)  # important 
+     
       
      #generating jwt token for api access
      token = jwt.encode({
