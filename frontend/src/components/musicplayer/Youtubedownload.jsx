@@ -21,7 +21,7 @@ const YouTubeDownload = () => {
 
     try {
       const response = await axios.post(
-        `${API_URL}/download`,
+        `${API_URL}/get-audio-stream`,
 
         { url: youtubeUrl }, // Axios automatically converts this to JSON
         {
@@ -32,8 +32,7 @@ const YouTubeDownload = () => {
         }
       );
 
-      // const result = await response.data;
-      console.log("server response code", response.status);
+      // console.log("server response code", response.status);
 
       if (!response.status === 200) throw new Error("Download failed");
 

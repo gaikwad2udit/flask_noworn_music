@@ -57,7 +57,7 @@ const PlayerControls = () => {
         // const audioURL = URL.createObjectURL(audioblob);
         // console.log("Audio URL:", audioURL);
 
-        audioRef.current.src = currentSong.musicfile_cloudinary_url;
+        audioRef.current.src = currentSong.audio_url;
         audioRef.current.load();
         audioRef.current.play().catch((error) => {
           console.error("Error playing song:", error);

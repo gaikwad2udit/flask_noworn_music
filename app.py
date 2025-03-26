@@ -110,7 +110,7 @@ class Song(db.Model):
     filename = db.Column(db.String(140),)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    musicfile_cloudinary_url = db.Column(db.String(255))
+    audio_url = db.Column(db.String(2048))
 
     def to_dict(self):
         return {
@@ -122,7 +122,7 @@ class Song(db.Model):
             'uploader': self.uploader,
             'upload_date': self.upload_date,
             'thumbnail': self.thumbnail,
-            'musicfile_cloudinary_url': self.musicfile_cloudinary_url
+            'audio_url': self.audio_url
 
         }
 
@@ -327,7 +327,7 @@ def list_songs(current_user):
             'uploader': song.uploader,
             'upload_date': song.upload_date,
             'thumbnail': song.thumbnail,
-            'musicfile_cloudinary_url': song.musicfile_cloudinary_url
+            'audio_url': song.audio_url
         
     } for song in current_user.songs])
 
@@ -341,13 +341,13 @@ def play_song(current_user,song_id):
     song = Song.query.filter_by(id = song_id, user_id = current_user.id).first_or_404()
     # filepath = os.path.join(get_user_music_folder(current_user.id), song.filename)
     # return send_file(filepath,mimetype='audio/mpeg')
-    if not song.musicfile_cloudinary_url:
+    if not song.audio_url:
         return jsonify({'error': 'No file available for this song'}), 404
 
     # Return the Cloudinary URL in the response
     return jsonify({
         'message': 'Song URL retrieved successfully',
-        'music_url': song.musicfile_cloudinary_url
+        'music_url': song.audio_url
     })
 
 #updated for user auth
@@ -404,7 +404,7 @@ def upload_songs(current_user):
                 title = title,
                 artist = artist,
                 user_id = current_user.id,
-                musicfile_cloudinary_url = cloudinary_url,
+                audio_url = cloudinary_url,
                )
                db.session.add(song)
                saved_files.append(filename)
@@ -431,23 +431,23 @@ def delete_song(current_user,song_id):
   song = Song.query.filter_by(id=song_id, user_id=current_user.id).first_or_404()
 
   try:
-    cloudinary_url = song.musicfile_cloudinary_url
-    if not cloudinary_url:
-            return jsonify({'error': 'Cloudinary URL not found'}), 404
+    # cloudinary_url = song.musicfile_cloudinary_url
+    # if not cloudinary_url:
+    #         return jsonify({'error': 'Cloudinary URL not found'}), 404
 
-    public_id = cloudinary_url.split("/")[-1].split(".")[0]  # Extracts the unique public ID
-    cloudinary_folder = f"music_files/user_{current_user.id}/{public_id}"
+    # public_id = cloudinary_url.split("/")[-1].split(".")[0]  # Extracts the unique public ID
+    # cloudinary_folder = f"music_files/user_{current_user.id}/{public_id}"
     
-    res = cloudinary.uploader.destroy(cloudinary_folder,resource_type = "video")
-    if res.get('result') == 'ok':  # Check if deletion was successful
+    # res = cloudinary.uploader.destroy(cloudinary_folder,resource_type = "video")
+    # if res.get('result') == 'ok':  # Check if deletion was successful
             # Remove from database
             db.session.delete(song)
             db.session.commit()
             
             return jsonify({'message': 'File deleted successfully'})
-    else:
-            return jsonify({'error': 'Failed to delete file from Cloudinary'}), 500
-    # filepath = os.path.join(get_user_music_folder(current_user.id),song.filename)
+    # else:
+    #         return jsonify({'error': 'Failed to delete file from Cloudinary'}), 500
+    # # filepath = os.path.join(get_user_music_folder(current_user.id),song.filename)
     
   except Exception as e:
     return jsonify({'error': str(e)}), 500
@@ -543,6 +543,16 @@ YDL_OPTIONS = {
         }
     }
 }
+YDL_OPTIONS.update({
+    'extractor_args': {
+        'youtube': {
+            'player_skip': ['configs', 'webpage'],  # Skip problematic extractors
+            'player_client': ['android', 'web']  # Alternate clients
+        }
+    },
+    'allow_unplayable_formats': True,
+    'ignore_no_formats_error': True
+})
 
 #downloading youtube videos ,updated for user auth
 @app.route('/download',methods = ['POST'])
@@ -642,6 +652,76 @@ def download_song(current_user):
         import traceback
         traceback.print_exc() 
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/get-audio-stream', methods=[ 'POST'])
+@jwt_required
+def get_audio_stream(current_user):
+    
+    url = request.json.get('url') 
+    print("video URl -->",url)
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'quiet': True,
+        'extract_audio': True,
+        'forceurl': True,  # Only get URL (no download)
+    }
+    try:
+     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+        audio_url = info['url']  # Direct stream URL (M4A/WebM)
+        filename = info['title']
+        artist = info['uploader']
+        duration = info['duration']
+        upload_date = info['upload_date']
+        thumbnail = info['thumbnail']
+    except Exception as e:
+        import traceback
+        traceback.print_exc() 
+        return jsonify({'failed getting song url': str(e)}), 500
+
+
+    print("audio_url -->",audio_url)
+    print("title", filename)
+    print("artist",artist)
+    # print('uploader',info.get('uploader'))
+    print('duration',duration)
+    print('upload_date',upload_date)
+    print('thumbnail',thumbnail)
+
+    if Song.query.filter_by(filename=filename, user_id = current_user.id).first():
+           
+           return jsonify({'error': 'Song already exists in your library'}), 400
+    
+    date_str = upload_date
+    formatted_date = datetime.strptime(date_str, "%Y%m%d").strftime("%d %B %Y") 
+
+    song = Song(
+         
+         filename = filename,
+         title= info.get('title', filename),
+         artist= info.get('uploader', 'Unknown Artist'),
+         user_id= current_user.id, 
+         uploader= info.get('uploader'),
+         upload_date= formatted_date,
+         thumbnail= info.get('thumbnail'),
+         audio_url = audio_url,
+       )
+
+    db.session.add(song)
+    db.session.commit()
+
+        
+    return jsonify({
+        'message': 'Song downloaded successfully',
+        'filename': song.to_dict()
+       })
+
+
+    # return jsonify({ 'audio_url': audio_url })
+
+
+
 
 
 
