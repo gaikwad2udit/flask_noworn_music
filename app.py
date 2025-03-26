@@ -22,6 +22,7 @@ import smtplib
 import cloudinary
 import cloudinary.uploader
 import glob
+from flask_migrate import Migrate
 
 load_dotenv()
 
@@ -44,6 +45,7 @@ app.config['SECURITY_PASSWORD_SALT'] =  os.getenv('SECURITY_PASSWORD_SALT')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///site.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+
 # CORS(app, resources={r'/*': {
 #     'origins': "http://localhost:3000",
 #     'methods': ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -63,6 +65,7 @@ CORS(app, resources={r'/*': {
 
 
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 # login_manager = LoginManager(app)
 # login_manager.login_view = 'login'
 

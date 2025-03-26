@@ -2,7 +2,8 @@
 # Dependencies
 frontend/node_modules
 /venv
-
+instance/
+instance/site.db
 # Environment files
 .env
 .env.local
@@ -11,6 +12,7 @@ frontend/node_modules
 frontend/build
 frontend/dist
 frontend/
+frontend
 # Cache
 frontend/.cache
 __pycache__
